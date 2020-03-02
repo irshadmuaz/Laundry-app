@@ -1,83 +1,84 @@
 <template>
-<div>
-  {{error}}
-<div class="row">
-    <div class="col">
-      <q-card class="fit">
-      <q-card-section>
-        <div class="text-h6">Manage Tasks</div>
-        <div class="text-subtitle2">Create, Edit and Delete</div>
-      </q-card-section>
+  <div>
+    {{error}}
+    <div class="row">
+      <div class="col">
+        <q-card class="fit">
+          <q-card-section>
+            <div class="text-h6">Manage Tasks</div>
+            <div class="text-subtitle2">Create, Edit and Delete</div>
+          </q-card-section>
 
-      <q-separator />
+          <q-separator />
 
-      <q-card-section>
-          <q-input
-            outlined
-            bottom-slots
-            v-model="taskItem.garment"
-            label="Garment"
-            hint="Garment type"
-            dense
-            class="on-right"
-            style="width:150px; display:inline-block;"
-          ></q-input>
-          <q-input
-            outlined
-            bottom-slots
-            v-model="taskItem.price"
-            label="Price"
-            hint="Set Price"
-            dense
-            type="number"
-            class="on-right"
-            style="width:150px; display:inline-block;"
-          ></q-input>
+          <q-form ref="form">
+            <q-card-section>
+              <q-input
+                outlined
+                bottom-slots
+                v-model="taskItem.garment"
+                label="Garment"
+                hint="Garment type"
+                dense
+                class="on-right"
+                :rules="[val => val && val.length > 0 || 'Must type in a garment name']"
+                style="width:150px; display:inline-block;"
+              ></q-input>
+              <q-input
+                outlined
+                bottom-slots
+                v-model="taskItem.price"
+                label="Price"
+                hint="Set Price"
+                dense
+                type="number"
+                class="on-right"
+                :rules="[val => val && val.length > 0 || 'Must type in a price']"
+                style="width:150px; display:inline-block;"
+              ></q-input>
+            </q-card-section>
 
-      </q-card-section>
-      <q-card-section>
-        <q-chip
-            v-for="(item,index) in taskItem.tasks"
-            :key="item"
-            removable
-            @remove="removeTask(index)"
-            icon="bookmark"
-          >{{item}}</q-chip>
-      </q-card-section>
-      <q-card-section>
-        <q-input
-            outlined
-            bottom-slots
-            v-model="task"
-            label="Add Task"
-            hint="Task type"
-            dense
-            class="on-right"
-            style="width:150px; display:inline-block;"
-            v-on:keyup.enter.native="addTask"
-          >
-            <template v-slot:append>
-              <q-btn round dense flat icon="add" @click="addTask" />
-            </template>
-          </q-input>
-      </q-card-section>
-      <q-card-actions align="center">
-        <q-btn class="on-rigt" @click="saveTask">Save</q-btn>
-        <q-btn @click="cancelTask">Cancel</q-btn>
-      </q-card-actions>
+            <q-card-section>
+              <q-chip
+                v-for="(item,index) in taskItem.tasks"
+                :key="item"
+                removable
+                @remove="removeTask(index)"
+                icon="bookmark"
+              >{{item}}</q-chip>
+            </q-card-section>
 
-      <q-card-section>
-            <!-- <tasks :tasks="allTasks" @deleteTask="deleteTask"/> -->
-      </q-card-section>
-    </q-card>
+            <q-card-section>
+              <q-input
+                outlined
+                bottom-slots
+                v-model="task"
+                label="Add Task"
+                hint="Task type"
+                dense
+                class="on-right"
+                style="width:150px; display:inline-block;"
+                :rules="[val => taskItem.tasks && taskItem.tasks.length > 0 || 'Must have atleast 1 task']"
+                v-on:keyup.enter.native="addTask"
+              >
+                <template v-slot:append>
+                  <q-btn round dense flat icon="add" @click="addTask" />
+                </template>
+              </q-input>
+            </q-card-section>
+            <q-card-actions class="on-right" align="left">
+            <q-btn class="on-rigt" @click="saveTask">Save</q-btn>
+            <q-btn @click="cancelTask">Cancel</q-btn>
+          </q-card-actions>
+          </q-form>
+        </q-card>
+      </div>
+
+      <div class="col">
+        <tasks class="fit" :tasks="allTasks" @deleteTask="deleteTask" @editTask="editTask" />
+      </div>
     </div>
-    <div class="col">
-      <tasks class="fit" :tasks="allTasks" @deleteTask="deleteTask" @editTask="editTask"/>
-    </div>
-
   </div>
-</div>
-
 </template>
 
 <script>
@@ -102,8 +103,11 @@ export default {
     addTask () {
       if (this.task) {
         const newTask = this.task.toLowerCase()
-        if (this.taskItem.tasks.includes(newTask)) { this.error = 'The task "' + newTask + '" already exists!'; return }
-        this.taskItem.tasks.push(newTask)
+        if (this.taskItem.tasks && this.taskItem.tasks.includes(newTask)) {
+          this.error = 'The task "' + newTask + '" already exists!'
+          return
+        }
+        this.taskItem.tasks ? this.taskItem.tasks.push(newTask) : this.taskItem.tasks = [newTask]
         this.success('addTask')
       }
       this.task = ''
@@ -112,7 +116,16 @@ export default {
       this.taskItem.tasks.splice(index, 1)
     },
     saveTask () {
-      if (this.taskItem.price && this.taskItem.tasks.length > 0 && this.taskItem.garment) {
+      this.$refs.form.validate().then(status => {
+        if (status) {
+          this.$emit('change', this.params)
+        }
+      })
+      if (
+        this.taskItem.price &&
+        this.taskItem.tasks.length > 0 &&
+        this.taskItem.garment
+      ) {
         // if has id then update
         if (this.taskItem.___id) {
           dbService.updateTask(this.taskItem)
@@ -124,7 +137,12 @@ export default {
         let dublicate = dbService.getTasks(filter)
 
         dublicate = dublicate.filter(x => {
-          if ($(x.tasks).not(this.taskItem.tasks).length === 0 && $(this.taskItem.tasks).not(x.tasks).length === 0) { return x }
+          if (
+            $(x.tasks).not(this.taskItem.tasks).length === 0 &&
+            $(this.taskItem.tasks).not(x.tasks).length === 0
+          ) {
+            return x
+          }
         })
         if (dublicate.length > 0) {
           this.error = 'A task with the same parameters already exists'
@@ -145,20 +163,24 @@ export default {
     },
     editTask (task) {
       console.log('edittask', task)
-      this.taskItem = task
+      this.taskItem = JSON.parse(JSON.stringify(task))
     },
     success (type) {
       switch (type) {
         case 'saveTask':
           this.taskItem = {}
+          this.$refs.form.reset()
           break
         case 'updateTask':
           this.taskItem = {}
+          this.$refs.form.reset()
+          this.allTasks = dbService.getTasks()
+          break
       }
     },
     cancelTask () {
-      this.taskItem.tasks = []
-      this.taskItem.price = 0
+      this.taskItem = {}
+      this.$refs.form.reset()
     }
   }
 }

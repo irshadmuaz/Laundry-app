@@ -10,6 +10,7 @@
         input-debounce="0"
         label="Select Client"
         :options="clients"
+        :rules="[val => params.client||'Must select a client' ]"
         @filter="filterFn"
       >
         <template v-slot:no-option>
@@ -18,16 +19,16 @@
           </q-item>
         </template>
       </q-select>
-
+      <!-- Todo: this needs to be a component select tasks -->
       <q-select
         filled
         v-model="params.task"
-        map-options
         clearable
         use-input
         input-debounce="0"
         label="Select Task"
-        :options="tasks"
+        :rules="[val => data.length > 0 || 'Must have atleast 1 task']"
+        :options="taskItems"
         @input="taskSelected"
         @filter="filterTasks"
       >
@@ -36,46 +37,59 @@
             <q-item-section class="text-grey">No results</q-item-section>
           </q-item>
         </template>
-      </q-select>
-      <q-table
-      title="Tasks"
-      dense
-      :data="data"
-      :columns="columns"
-      row-key="___id">
-      <template v-slot:body="props">
-        <q-tr :props="props">
-          <q-td key="tasks" :props="props">
-            <q-chip v-for="(tsk) in props.row.tasks" :key="tsk" dense>{{tsk}}</q-chip>
-          </q-td>
-          <q-td key="price" :props="props">
-            {{ props.row.price }}
-          </q-td>
-          <q-td key="quantity" :props="props">
-            {{ props.row.quantity }}
-            <q-popup-edit v-model="props.row.quantity">
-              <q-input v-model="props.row.quantity" dense autofocus counter />
-            </q-popup-edit>
-          </q-td>
-        </q-tr>
-      </template>
-      </q-table>
-      <!-- <q-tree :nodes="taskTree" node-key="label" default-expand-all>
-        <template v-slot:header-generic="prop">
-          <div style="width:100%;">
-            <task :task="prop.node.task">
-              <q-input v-model="prop.node.task.quantity" :value="1" slot="avatar" type="number" filled style="max-width: 50px" dense></q-input>
-            </task>
-          </div>
+        <template v-slot:option="scope">
+          <q-item v-bind="scope.itemProps" v-on="scope.itemEvents">
+            <q-item-section>
+              <q-item-label>{{scope.opt.garment}}</q-item-label>
+              <q-item-label caption lines="2">{{scope.opt.tasks.join(', ')}}</q-item-label>
+            </q-item-section>
+            <q-item-section side top>
+              <q-badge color="teal" :label="scope.opt.price"></q-badge>
+            </q-item-section>
+          </q-item>
         </template>
-      </q-tree> -->
+      </q-select>
+
+      <q-table title="Tasks" dense :data="data" :columns="columns" row-key="___id">
+        <template v-slot:body="props">
+          <q-tr :props="props">
+            <q-td key="garment" :props="props">{{props.row.garment}}</q-td>
+            <q-td key="tasks" :props="props">
+              <q-chip v-for="(tsk) in props.row.tasks" :key="tsk" dense>{{tsk}}</q-chip>
+            </q-td>
+            <q-td key="price" :props="props">{{ props.row.price }}</q-td>
+            <q-td key="quantity" :props="props">
+              {{ props.row.quantity }}
+              <q-popup-edit v-model="props.row.quantity" buttons :validate="quantityValidation">
+                <q-input
+                  v-model="props.row.quantity"
+                  type="number"
+                  dense
+                  autofocus
+                  counter
+                  :rules="[val=>val > 0 || 'Quantity must be atleast 1']"
+                ></q-input>
+              </q-popup-edit>
+            </q-td>
+            <q-td key="op" :props="props">
+              <q-btn
+                round
+                color="deep-orange"
+                icon="remove"
+                type="textarea"
+                size="xs"
+                @click="removeTask(props.row)"
+              ></q-btn>
+            </q-td>
+          </q-tr>
+        </template>
+      </q-table>
       <q-input
         filled
-        v-model="params.phoneNumber"
+        v-model="params.additionalDetails"
         label="Details"
         hint="Any additional information"
         lazy-rules
-        :rules="[val => ((val && val.match(/\d/g)) || !val) || 'Please type a valid Phone Number']"
       ></q-input>
       <div>
         <q-btn label="Create" type="submit" color="primary"></q-btn>
@@ -98,10 +112,10 @@ export default {
       .getClients()
       .map(x => ({ label: x.name, value: x.___id }))
     this.allClients = this.clients
-    this.tasks = dbService
-      .getTasks()
-      .map(x => ({ label: x.tasks.join(' + '), value: x.___id }))
-    this.allTasks = this.tasks
+    this.taskItems = dbService.getTasks()
+    console.log(this.taskItem)
+    // .map(x => ({ label: x.taskItem.join(' + '), value: x.___id }))
+    this.allTaskItems = this.taskItems
   },
 
   data () {
@@ -109,23 +123,23 @@ export default {
       params: { client: '', task: '' },
 
       clients: [],
-      allTasks: [],
-      tasks: [],
+      allTaskItems: [],
+      taskItems: [],
       columns: [
+        { name: 'garment', align: 'left', label: 'Garment', field: 'garment' },
         {
           name: 'tasks',
-          required: true,
-          label: 'Apparel',
+          label: 'Tasks',
           align: 'left',
-          field: row => row.name,
-          format: val => `${val}`
+          field: 'tasks'
         },
-        { name: 'price', align: 'center', label: 'Cost', field: 'price' },
-        { name: 'quantity', align: 'center', label: 'Qnt', field: 'quantity' }
-        // { name: 'fat', label: 'Fat (g)', field: 'fat', sortable: true },
+        { name: 'price', align: 'center', label: 'Cost/item', field: 'price' },
+        { name: 'quantity', align: 'center', label: 'Qnt', field: 'quantity' },
+        { name: 'op', align: 'right', label: '', field: 'op' }
       ],
       data: [],
       allClients: [],
+      taskDict: {},
       selected: 'Food',
       taskTree: [
         {
@@ -141,16 +155,26 @@ export default {
     }
   },
   methods: {
+    quantityValidation (val) {
+      console.log(val)
+      if (val < 1) {
+        return false
+      }
+      return true
+    },
     onSubmit () {
       this.$refs.clientForm.validate().then(status => {
         if (status) {
           this.$emit('change', this.params)
+          const req = { client: this.params.client, taskItems: this.data, ...this.params }
+          console.log(req)
+          dbService.insertRequest(req)
         }
       })
     },
     onReset () {
-      this.params = null
-      console.log('here is the db content', dbService.getClients())
+      this.params = { client: '', task: '' }
+      this.data = []
     },
     filterFn (val, update) {
       if (val === '') {
@@ -170,23 +194,37 @@ export default {
     filterTasks (val, update) {
       if (val === '') {
         update(() => {
-          this.tasks = this.allTasks
+          this.taskItems = this.allTaskItems
         })
         return
       }
 
       update(() => {
         const needle = val.toLowerCase()
-        this.tasks = this.allTasks.filter(
-          v => v.label.toLowerCase().indexOf(needle) > -1
+        this.taskItems = this.allTaskItems.filter(
+          v =>
+            v.garment.toLowerCase().indexOf(needle) > -1 ||
+            v.tasks
+              .join(',')
+              .toLowerCase()
+              .indexOf(needle) > -1
         )
       })
     },
     taskSelected (task) {
-      const tsk = dbService.getTask(task.value)
-      console.error('here is the tsk', tsk)
-      this.data.push({ ...tsk, quantity: 1 })
+      // const tsk = dbService.getTask(task.___id)
+      // console.error('here is the tsk', tsk, task)
+      const index = this.data.findIndex(x => x.___id === task.___id)
+      if (index > -1) {
+        this.data[index].quantity += 1
+      } else {
+        this.data.push({ ...task, quantity: 1 })
+      }
       this.params.task = ''
+    },
+    removeTask (task) {
+      const index = this.data.findIndex(x => x.___id === task.___id)
+      this.data.splice(index, 1)
     }
   }
 }

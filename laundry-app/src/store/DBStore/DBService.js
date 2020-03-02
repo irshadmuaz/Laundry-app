@@ -4,7 +4,6 @@ const utilities = {
   insertClient: a => {
     return dbs.clientDB.insert(a)
   },
-
   getClients: () => {
     return dbs.clientDB().get()
   },
@@ -25,6 +24,10 @@ const utilities = {
   },
   deleteTask: (id) => {
     return dbs.taskDB(id).remove()
+  },
+
+  insertRequest: (request) => {
+    return dbs.requestDB.insert(request)
   }
 }
 
